@@ -1,6 +1,6 @@
 #!/bin/bash
 # Auto build dashboard and push to GitHub when thesis files change
-cd /Users/sylviakong/Projects/stock-screener
+cd "$(dirname "$0")"
 
 # Rebuild dashboard
 python3 build.py || exit 1
