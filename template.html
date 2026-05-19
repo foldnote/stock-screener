@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Investment Research Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0a;--s1:#141414;--s2:#1c1c1c;--s3:#262626;
+  --border:#2a2a2a;--border2:#333;
+  --t1:#f0f0f0;--t2:#a0a0a0;--t3:#666;
+  --core:#a78bfa;--core-bg:rgba(167,139,250,.1);
+  --bull:#34d399;--bull-bg:rgba(52,211,153,.1);
+  --wait:#fbbf24;--wait-bg:rgba(251,191,36,.1);
+  --pass:#f87171;--pass-bg:rgba(248,113,113,.1);
+  --green:#34d399;--red:#f87171;
+  --sidebar-w:220px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.5;height:100vh;overflow:hidden}
+
+/* Layout */
+.layout{display:flex;height:100vh}
+
+/* Sidebar */
+.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--s1);border-right:1px solid var(--border);padding:20px 16px;display:flex;flex-direction:column;gap:20px;overflow-y:auto}
+.sidebar h1{font-size:16px;font-weight:700;letter-spacing:-.3px;line-height:1.3}
+.sidebar .price-status{font-size:10.5px;padding:4px 8px;border-radius:5px;display:inline-flex;align-items:center;gap:5px;margin-top:8px}
+.price-status.loading{background:var(--wait-bg);color:var(--wait)}
+.price-status.done{background:var(--bull-bg);color:var(--bull)}
+.price-status.error{background:var(--pass-bg);color:var(--pass);cursor:pointer}
+.price-status .spinner{width:10px;height:10px;border:1.5px solid var(--wait);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Filter sections */
+.fgroup{display:flex;flex-direction:column;gap:4px}
+.fgroup-label{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.fbtn{padding:5px 10px;border-radius:6px;border:none;background:transparent;color:var(--t2);font-size:12px;cursor:pointer;transition:all .12s;font-family:inherit;text-align:left;display:flex;justify-content:space-between;align-items:center}
+.fbtn:hover{background:var(--s2);color:var(--t1)}
+.fbtn.on{background:var(--s3);color:var(--t1);font-weight:500}
+.fbtn .cnt{font-size:10px;color:var(--t3);min-width:16px;text-align:right}
+.fbtn.on .cnt{color:var(--t2)}
+
+/* Search */
+.search input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--s2);color:var(--t1);font-size:12px;font-family:inherit;outline:none;transition:border .12s}
+.search input:focus{border-color:var(--border2)}
+.search input::placeholder{color:var(--t3)}
+
+/* Right panel */
+.right{flex:1;position:relative;min-width:0;overflow:hidden}
+
+/* Table area */
+.table-wrap{overflow-y:auto;height:100%}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead{position:sticky;top:0;z-index:10}
+th{background:var(--s1);font-weight:600;text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);color:var(--t2);font-size:11px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+td{padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+tr{cursor:pointer;transition:background .1s}
+tr:hover td{background:var(--s2)}
+tr.sel td{background:var(--s2);border-left:2px solid var(--t1)}
+tr.sel td:first-child{padding-left:12px}
+
+.t-name{font-weight:600}
+.t-ticker{color:var(--t3);font-family:'SF Mono','Fira Code',monospace;font-size:11px}
+.t-sector{color:var(--t3)}
+.t-price{font-family:'SF Mono','Fira Code',monospace;font-weight:500;text-align:right}
+.t-chg{text-align:right;font-family:'SF Mono','Fira Code',monospace;font-size:11.5px}
+.t-chg.up{color:var(--green)}
+.t-chg.down{color:var(--red)}
+.t-verdict{color:var(--t2);max-width:280px;overflow:hidden;text-overflow:ellipsis}
+
+.badge{padding:2px 8px;border-radius:8px;font-size:10.5px;font-weight:500;white-space:nowrap;display:inline-block}
+.badge.core{background:var(--core-bg);color:var(--core)}
+.badge.bullish{background:var(--bull-bg);color:var(--bull)}
+.badge.wait{background:var(--wait-bg);color:var(--wait)}
+.badge.pass{background:var(--pass-bg);color:var(--pass)}
+
+.no-price{color:var(--t3);font-size:11px}
+
+/* Detail slide-over */
+.detail-overlay{position:absolute;top:0;right:0;bottom:0;width:55%;max-width:720px;background:var(--s1);border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease;z-index:50;box-shadow:-4px 0 24px rgba(0,0,0,.4)}
+.detail-overlay.open{transform:translateX(0)}
+.detail-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--s1)}
+.detail-title{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;min-width:0}
+.detail-title span.sname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-title .badge{font-size:10.5px;flex-shrink:0}
+.detail-right{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.detail-meta{font-size:11px;color:var(--t3);white-space:nowrap}
+.detail-close{background:none;border:none;color:var(--t2);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
+.detail-close:hover{background:var(--s3);color:var(--t1)}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--s2);flex-shrink:0}
+.tab{padding:8px 18px;font-size:12px;color:var(--t3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;font-family:inherit;transition:all .12s}
+.tab:hover{color:var(--t2)}
+.tab.on{color:var(--t1);border-bottom-color:var(--t1)}
+
+/* Content */
+.detail-body{flex:1;overflow-y:auto;padding:20px 24px}
+
+/* Markdown */
+.md{font-size:13px;line-height:1.75;color:var(--t1)}
+.md h1{font-size:18px;font-weight:700;margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.md h1:first-child{margin-top:0}
+.md h2{font-size:15px;font-weight:600;margin:18px 0 8px}
+.md h3{font-size:13.5px;font-weight:600;margin:14px 0 6px}
+.md h4{font-size:12.5px;font-weight:600;margin:10px 0 4px;color:var(--t2)}
+.md p{margin:6px 0}
+.md strong{color:#fff;font-weight:600}
+.md ul,.md ol{margin:6px 0;padding-left:22px}
+.md li{margin:3px 0}
+.md table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
+.md th{background:var(--s2);font-weight:600;text-align:left;padding:6px 10px;border:1px solid var(--border);white-space:nowrap;text-transform:none;letter-spacing:0;color:var(--t1)}
+.md td{padding:6px 10px;border:1px solid var(--border);vertical-align:top;white-space:normal}
+.md tr:hover td{background:var(--s2)}
+.md blockquote{border-left:3px solid var(--border);padding-left:14px;color:var(--t2);margin:10px 0}
+.md code{background:var(--s3);padding:1px 5px;border-radius:3px;font-size:11.5px;font-family:'SF Mono','Fira Code',monospace}
+.md pre{background:var(--s2);padding:14px;border-radius:6px;overflow-x:auto;margin:10px 0}
+.md pre code{background:none;padding:0}
+.md a{color:#60a5fa;text-decoration:none}
+.md a:hover{text-decoration:underline}
+.md hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+.detail-body::-webkit-scrollbar,.table-wrap::-webkit-scrollbar,.sidebar::-webkit-scrollbar{width:5px}
+.detail-body::-webkit-scrollbar-track,.table-wrap::-webkit-scrollbar-track,.sidebar::-webkit-scrollbar-track{background:transparent}
+.detail-body::-webkit-scrollbar-thumb,.table-wrap::-webkit-scrollbar-thumb,.sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+.empty-row td{text-align:center;color:var(--t3);padding:40px}
+
+/* Wishlist button */
+.wl-btn{width:100%;padding:8px 10px;border-radius:6px;border:1px dashed var(--border2);background:transparent;color:var(--t2);font-size:12px;cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center;transition:all .12s}
+.wl-btn:hover{border-color:var(--t3);color:var(--t1);background:var(--s2)}
+.wl-cnt{background:var(--s3);padding:1px 7px;border-radius:8px;font-size:10px;min-width:18px;text-align:center}
+
+/* Wishlist panel (reuse detail-overlay pattern) */
+.wl-overlay{position:absolute;top:0;right:0;bottom:0;width:420px;max-width:90%;background:var(--s1);border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease;z-index:60;box-shadow:-4px 0 24px rgba(0,0,0,.4)}
+.wl-overlay.open{transform:translateX(0)}
+.wl-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.wl-header h2{font-size:14px;font-weight:700}
+.wl-header-r{display:flex;align-items:center;gap:8px}
+.wl-add-btn{padding:4px 10px;border-radius:5px;border:none;background:var(--s3);color:var(--t1);font-size:11.5px;cursor:pointer;font-family:inherit}
+.wl-add-btn:hover{background:var(--border2)}
+.wl-body{flex:1;overflow-y:auto;padding:12px 16px}
+.wl-empty{color:var(--t3);font-size:12.5px;text-align:center;padding:40px 0}
+
+/* Wishlist items */
+.wl-item{padding:10px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;background:var(--s2);transition:border-color .12s}
+.wl-item:hover{border-color:var(--border2)}
+.wl-item-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.wl-item-name{font-size:13px;font-weight:600}
+.wl-item-ticker{font-size:11px;color:var(--t3);font-family:'SF Mono','Fira Code',monospace}
+.wl-item-notes{font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-wrap}
+.wl-item-date{font-size:10px;color:var(--t3);margin-top:4px}
+.wl-item-actions{display:flex;gap:4px;flex-shrink:0}
+.wl-item-actions button{background:none;border:none;color:var(--t3);cursor:pointer;font-size:12px;padding:2px 4px;border-radius:3px}
+.wl-item-actions button:hover{background:var(--s3);color:var(--t1)}
+
+/* Wishlist edit form */
+.wl-form{padding:10px 12px;border:1px solid var(--border2);border-radius:6px;margin-bottom:8px;background:var(--s2)}
+.wl-form input,.wl-form textarea{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--s3);color:var(--t1);font-size:12px;font-family:inherit;outline:none;margin-bottom:6px}
+.wl-form textarea{resize:vertical;min-height:48px}
+.wl-form input:focus,.wl-form textarea:focus{border-color:var(--border2)}
+.wl-form-actions{display:flex;gap:6px;justify-content:flex-end}
+.wl-form-actions button{padding:4px 12px;border-radius:4px;border:none;font-size:11.5px;cursor:pointer;font-family:inherit}
+.wl-save{background:var(--t1);color:var(--bg)}
+.wl-save:hover{opacity:.9}
+.wl-cancel{background:var(--s3);color:var(--t2)}
+.wl-cancel:hover{color:var(--t1)}
+
+/* Selection popover */
+.sel-pop{position:absolute;background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;font-size:11.5px;color:var(--t1);cursor:pointer;z-index:80;box-shadow:0 4px 12px rgba(0,0,0,.5);display:none;white-space:nowrap;user-select:none}
+.sel-pop:hover{background:var(--border2)}
+
+/* Note comment form (floating) */
+.note-form-wrap{position:absolute;z-index:80;width:320px;background:var(--s1);border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:none}
+.note-form-wrap .nf-quote{padding:8px 12px;font-size:11.5px;color:var(--t2);border-bottom:1px solid var(--border);max-height:80px;overflow-y:auto;line-height:1.5;border-left:2px solid var(--core);margin:8px 12px;padding:4px 10px;background:var(--s2);border-radius:0 4px 4px 0}
+.note-form-wrap textarea{width:calc(100% - 24px);margin:8px 12px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--s2);color:var(--t1);font-size:12px;font-family:inherit;outline:none;resize:vertical;min-height:56px}
+.note-form-wrap textarea:focus{border-color:var(--border2)}
+.note-form-wrap .nf-actions{display:flex;gap:6px;justify-content:flex-end;padding:0 12px 10px}
+.note-form-wrap .nf-actions button{padding:4px 12px;border-radius:4px;border:none;font-size:11.5px;cursor:pointer;font-family:inherit}
+
+/* Notes sidebar button */
+.notes-btn{width:100%;padding:8px 10px;border-radius:6px;border:1px dashed var(--border2);background:transparent;color:var(--t2);font-size:12px;cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center;transition:all .12s}
+.notes-btn:hover{border-color:var(--t3);color:var(--t1);background:var(--s2)}
+
+/* Notes panel */
+.notes-overlay{position:absolute;top:0;right:0;bottom:0;width:480px;max-width:90%;background:var(--s1);border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease;z-index:60;box-shadow:-4px 0 24px rgba(0,0,0,.4)}
+.notes-overlay.open{transform:translateX(0)}
+.notes-hd{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.notes-hd h2{font-size:14px;font-weight:700}
+.notes-hd-r{display:flex;align-items:center;gap:8px}
+.notes-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--s2);flex-shrink:0}
+.notes-tab{padding:7px 16px;font-size:11.5px;color:var(--t3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;font-family:inherit}
+.notes-tab:hover{color:var(--t2)}
+.notes-tab.on{color:var(--t1);border-bottom-color:var(--t1)}
+.notes-body{flex:1;overflow-y:auto;padding:12px 16px}
+.notes-empty{color:var(--t3);font-size:12.5px;text-align:center;padding:40px 0}
+.notes-dl{padding:4px 10px;border-radius:5px;border:none;background:var(--s3);color:var(--t1);font-size:11px;cursor:pointer;font-family:inherit}
+.notes-dl:hover{background:var(--border2)}
+
+/* Note group */
+.note-group{margin-bottom:16px}
+.note-group-hd{font-size:11px;color:var(--t3);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.note-card{padding:10px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;background:var(--s2)}
+.note-card:hover{border-color:var(--border2)}
+.note-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.note-card-stock{font-size:11px;font-weight:600;color:var(--core)}
+.note-card-date{font-size:10px;color:var(--t3)}
+.note-card-quote{font-size:12px;color:var(--t2);border-left:2px solid var(--core);padding-left:8px;margin:6px 0;line-height:1.5}
+.note-card-comment{font-size:12.5px;color:var(--t1);margin-top:4px;white-space:pre-wrap}
+.note-card-actions{display:flex;gap:4px;flex-shrink:0}
+.note-card-actions button{background:none;border:none;color:var(--t3);cursor:pointer;font-size:12px;padding:2px 4px;border-radius:3px}
+.note-card-actions button:hover{background:var(--s3);color:var(--t1)}
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div>
+      <h1>Investment Research</h1>
+      <div class="price-status loading" id="priceStatus">
+        <div class="spinner"></div>
+        <span>加载股价...</span>
+      </div>
+    </div>
+    <div class="search"><input type="text" id="q" placeholder="搜索..."></div>
+    <div class="fgroup" id="fMarket"></div>
+    <div class="fgroup" id="fConf"></div>
+    <div class="fgroup" id="fSector"></div>
+    <div>
+      <button class="wl-btn" onclick="toggleWishlist()">Wishlist<span class="wl-cnt" id="wlCnt">0</span></button>
+      <button class="notes-btn" onclick="toggleNotes()" style="margin-top:6px">Notes<span class="wl-cnt" id="notesCnt">0</span></button>
+    </div>
+  </div>
+
+  <!-- Right -->
+  <div class="right">
+    <!-- Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th>Sector</th>
+            <th style="text-align:right">Price</th>
+            <th style="text-align:right">Chg%</th>
+            <th>Level</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <!-- Detail slide-over -->
+    <div class="detail-overlay" id="detail"></div>
+    <!-- Selection popover -->
+    <div class="sel-pop" id="selPop" onclick="showNoteForm()">+ Add Note</div>
+    <!-- Note comment form -->
+    <div class="note-form-wrap" id="noteFormWrap">
+      <div class="nf-quote" id="nfQuote"></div>
+      <textarea id="nfComment" placeholder="写下你的想法..."></textarea>
+      <div class="nf-actions">
+        <button class="wl-cancel" onclick="hideNoteForm()">取消</button>
+        <button class="wl-save" onclick="saveNote()">保存</button>
+      </div>
+    </div>
+    <!-- Notes panel -->
+    <div class="notes-overlay" id="notesPanel">
+      <div class="notes-hd">
+        <h2>Notes</h2>
+        <div class="notes-hd-r">
+          <button class="notes-dl" onclick="downloadNotes()">↓ Download</button>
+          <button class="detail-close" onclick="toggleNotes()">✕</button>
+        </div>
+      </div>
+      <div class="notes-tabs">
+        <button class="notes-tab on" onclick="setNotesView('date',this)">By Date</button>
+        <button class="notes-tab" onclick="setNotesView('stock',this)">By Stock</button>
+      </div>
+      <div class="notes-body" id="notesBody"></div>
+    </div>
+    <!-- Wishlist slide-over -->
+    <div class="wl-overlay" id="wlPanel">
+      <div class="wl-header">
+        <h2>Wishlist</h2>
+        <div class="wl-header-r">
+          <button class="wl-add-btn" onclick="showWlForm()">+ Add</button>
+          <button class="detail-close" onclick="toggleWishlist()">✕</button>
+        </div>
+      </div>
+      <div class="wl-body" id="wlBody"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+/*__STOCK_DATA__*/
+
+const CONF={
+  core:{l:"🟣 核心跟踪",s:"核心跟踪"},
+  bullish:{l:"🟢 看好",s:"看好"},
+  wait:{l:"🟡 等价格",s:"等价格"},
+  pass:{l:"🔴 Pass",s:"Pass"}
+};
+const MKT_ORD={"港股":0,"A股":1,"美股":2,"日本":3,"欧洲":4};
+const CONF_ORD={core:0,bullish:1,wait:2,pass:3};
+
+let fMarket="all",fConf="all",fSector="all",query="",selId=null;
+let prices={};
+let renderedPanels={};
+
+// Yahoo Finance
+async function fetchPrices(){
+  const tickers=[...new Set(STOCKS.map(s=>s.ticker))];
+  const url=`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${tickers.join(",")}`;
+  const el=document.getElementById("priceStatus");
+  try{
+    const resp=await fetch(url);
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data=await resp.json();
+    if(data.quoteResponse&&data.quoteResponse.result){
+      for(const q of data.quoteResponse.result){
+        prices[q.symbol]={price:q.regularMarketPrice,change:q.regularMarketChangePercent,currency:q.currency||""};
+      }
+    }
+    onPricesDone(el);
+  }catch(e){
+    try{
+      const proxy="https://api.allorigins.win/raw?url=";
+      const resp2=await fetch(proxy+encodeURIComponent(url));
+      if(!resp2.ok) throw new Error(`Proxy ${resp2.status}`);
+      const data2=await resp2.json();
+      if(data2.quoteResponse&&data2.quoteResponse.result){
+        for(const q of data2.quoteResponse.result){
+          prices[q.symbol]={price:q.regularMarketPrice,change:q.regularMarketChangePercent,currency:q.currency||""};
+        }
+      }
+      onPricesDone(el);
+    }catch(e2){
+      el.className="price-status error";
+      el.innerHTML=`<span>⚠ 加载失败，点击重试</span>`;
+      el.onclick=()=>{
+        el.className="price-status loading";
+        el.innerHTML=`<div class="spinner"></div><span>重试中...</span>`;
+        el.onclick=null;
+        fetchPrices();
+      };
+    }
+  }
+}
+function onPricesDone(el){
+  el.className="price-status done";
+  el.innerHTML=`<span>✓ 已加载</span>`;
+  renderTable();
+}
+
+// Filters
+function renderFilters(){
+  const mEl=document.getElementById("fMarket");
+  const cEl=document.getElementById("fConf");
+  const mkts=[...new Set(STOCKS.map(s=>s.market))].sort((a,b)=>MKT_ORD[a]-MKT_ORD[b]);
+
+  let mh=`<div class="fgroup-label">Market</div>`;
+  mh+=`<button class="fbtn on" data-f="m" data-v="all">全部<span class="cnt">${STOCKS.length}</span></button>`;
+  mkts.forEach(m=>{
+    const n=STOCKS.filter(s=>s.market===m).length;
+    mh+=`<button class="fbtn" data-f="m" data-v="${m}">${m}<span class="cnt">${n}</span></button>`;
+  });
+  mEl.innerHTML=mh;
+
+  let ch=`<div class="fgroup-label">Confidence</div>`;
+  ch+=`<button class="fbtn on" data-f="c" data-v="all">全部<span class="cnt">${STOCKS.length}</span></button>`;
+  Object.entries(CONF).forEach(([k,v])=>{
+    const n=STOCKS.filter(s=>s.confidence===k).length;
+    ch+=`<button class="fbtn" data-f="c" data-v="${k}">${v.l}<span class="cnt">${n}</span></button>`;
+  });
+  cEl.innerHTML=ch;
+
+  const sEl=document.getElementById("fSector");
+  const sectors=[...new Set(STOCKS.map(s=>s.sector))].sort();
+  let sh=`<div class="fgroup-label">Sector</div>`;
+  sh+=`<button class="fbtn on" data-f="s" data-v="all">全部<span class="cnt">${STOCKS.length}</span></button>`;
+  sectors.forEach(s=>{
+    const n=STOCKS.filter(x=>x.sector===s).length;
+    sh+=`<button class="fbtn" data-f="s" data-v="${s}">${s}<span class="cnt">${n}</span></button>`;
+  });
+  sEl.innerHTML=sh;
+
+  document.querySelectorAll(".fbtn").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const f=b.dataset.f,v=b.dataset.v;
+      if(f==="m")fMarket=v;else if(f==="c")fConf=v;else fSector=v;
+      const container=f==="m"?mEl:f==="c"?cEl:sEl;
+      container.querySelectorAll(".fbtn").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on");
+      renderTable();
+    });
+  });
+}
+
+// Table
+function renderTable(){
+  const tbody=document.getElementById("tbody");
+  let list=STOCKS.filter(s=>{
+    if(fMarket!=="all"&&s.market!==fMarket)return false;
+    if(fConf!=="all"&&s.confidence!==fConf)return false;
+    if(fSector!=="all"&&s.sector!==fSector)return false;
+    if(query){
+      const q=query.toLowerCase();
+      return s.name.toLowerCase().includes(q)||s.ticker.toLowerCase().includes(q)||s.sector.toLowerCase().includes(q)||(s.verdict||"").toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  list.sort((a,b)=>{
+    const md=(MKT_ORD[a.market]??99)-(MKT_ORD[b.market]??99);
+    if(md!==0)return md;
+    return CONF_ORD[a.confidence]-CONF_ORD[b.confidence];
+  });
+
+  if(!list.length){
+    tbody.innerHTML=`<tr class="empty-row"><td colspan="6">没有匹配的股票</td></tr>`;
+    return;
+  }
+
+  let h="";
+  let lastMkt="";
+  for(const s of list){
+    if(s.market!==lastMkt){
+      lastMkt=s.market;
+      h+=`<tr><td colspan="6" style="padding:6px 14px;font-size:11px;color:var(--t3);background:var(--s2);font-weight:600;letter-spacing:.3px">${s.market}</td></tr>`;
+    }
+    const p=prices[s.ticker];
+    const priceStr=p&&p.price!=null?p.price.toFixed(2):"--";
+    const chgStr=p&&p.change!=null?((p.change>=0?"+":"")+p.change.toFixed(2)+"%"):"--";
+    const chgCls=p&&p.change!=null?(p.change>=0?"up":"down"):"";
+    const selected=selId===s.id?"sel":"";
+    h+=`<tr class="${selected}" data-id="${s.id}" onclick="selectStock('${s.id}')">
+      <td><span class="t-name">${s.name}</span> <span class="t-ticker">${s.ticker}</span></td>
+      <td class="t-sector">${s.sector}</td>
+      <td class="t-price">${priceStr}</td>
+      <td class="t-chg ${chgCls}">${chgStr}</td>
+      <td><span class="badge ${s.confidence}">${CONF[s.confidence].s}</span></td>
+      <td class="t-verdict">${s.verdict||""}</td>
+    </tr>`;
+  }
+  tbody.innerHTML=h;
+}
+
+// Detail
+function selectStock(id){
+  selId=id;
+  closeAllPanels();
+  document.querySelectorAll("#tbody tr").forEach(r=>r.classList.remove("sel"));
+  const row=document.querySelector(`tr[data-id="${id}"]`);
+  if(row)row.classList.add("sel");
+
+  const s=STOCKS.find(x=>x.id===id);
+  if(!s)return;
+  const det=document.getElementById("detail");
+  const fk=Object.keys(s.files||{});
+  const tl={thesis:"Thesis",monitor:"Monitor",archive:"Archive",model:"Model"};
+
+  const p=prices[s.ticker];
+  let priceInfo="";
+  if(p&&p.price!=null){
+    const sign=p.change>=0?"+":"";
+    const cls=p.change>=0?"up":"down";
+    priceInfo=`<span style="font-family:'SF Mono',monospace;font-size:13px;font-weight:600">${p.price.toFixed(2)}</span> <span class="t-chg ${cls}" style="font-size:12px">${sign}${p.change.toFixed(2)}%</span>`;
+  }
+
+  let tabs="";
+  if(fk.length>1){
+    tabs=`<div class="tabs">${fk.map((k,i)=>`<button class="tab${i===0?" on":""}" onclick="switchTab('${id}','${k}',this)">${tl[k]||k}</button>`).join("")}</div>`;
+  }
+
+  det.innerHTML=`
+    <div class="detail-header">
+      <div class="detail-title"><span class="sname">${s.name}</span> <span class="badge ${s.confidence}">${CONF[s.confidence].l}</span></div>
+      <div class="detail-right">
+        <div class="detail-meta">${s.ticker} ${priceInfo?("· "+priceInfo):""} · updated ${s.updated||"--"}</div>
+        <button class="detail-close" onclick="closeDetail()">✕</button>
+      </div>
+    </div>
+    ${tabs}
+    <div class="detail-body" id="detailBody"></div>
+  `;
+  requestAnimationFrame(()=>det.classList.add("open"));
+
+  if(fk.length>0) renderContent(id,fk[0]);
+}
+
+function switchTab(id,key,btn){
+  const det=document.getElementById("detail");
+  det.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));
+  btn.classList.add("on");
+  renderContent(id,key);
+}
+
+function renderContent(id,key){
+  const body=document.getElementById("detailBody");
+  const cacheKey=id+"-"+key;
+  if(renderedPanels[cacheKey]){
+    body.innerHTML=renderedPanels[cacheKey];
+    return;
+  }
+  const s=STOCKS.find(x=>x.id===id);
+  if(!s||!s.files[key])return;
+  const html=`<div class="md">${marked.parse(s.files[key])}</div>`;
+  renderedPanels[cacheKey]=html;
+  body.innerHTML=html;
+}
+
+function closeAllPanels(){
+  document.getElementById("detail").classList.remove("open");
+  document.getElementById("wlPanel").classList.remove("open");
+  document.getElementById("notesPanel").classList.remove("open");
+  document.getElementById("noteFormWrap").style.display="none";
+  document.getElementById("selPop").style.display="none";
+}
+
+function closeDetail(){
+  closeAllPanels();
+  selId=null;
+  document.querySelectorAll("#tbody tr").forEach(r=>r.classList.remove("sel"));
+}
+
+document.getElementById("q").addEventListener("input",e=>{query=e.target.value;renderTable();});
+
+// Wishlist (localStorage)
+const WL_KEY="inv-dashboard-wishlist";
+function loadWl(){try{return JSON.parse(localStorage.getItem(WL_KEY))||[];}catch(e){return[];}}
+function saveWl(list){localStorage.setItem(WL_KEY,JSON.stringify(list));}
+function updateWlCnt(){document.getElementById("wlCnt").textContent=loadWl().length;}
+
+function toggleWishlist(){
+  const p=document.getElementById("wlPanel");
+  const isOpen=p.classList.contains("open");
+  closeAllPanels();
+  if(!isOpen){p.classList.add("open");renderWl();}
+}
+
+function renderWl(){
+  const body=document.getElementById("wlBody");
+  const list=loadWl();
+  if(!list.length){body.innerHTML=`<div class="wl-empty">还没有想研究的股票</div>`;return;}
+  body.innerHTML=list.map((item,i)=>`
+    <div class="wl-item" id="wli-${i}">
+      <div class="wl-item-row">
+        <div>
+          <span class="wl-item-name">${esc(item.name)}</span>
+          ${item.ticker?`<span class="wl-item-ticker">${esc(item.ticker)}</span>`:""}
+        </div>
+        <div class="wl-item-actions">
+          <button onclick="editWlItem(${i})" title="Edit">✎</button>
+          <button onclick="deleteWlItem(${i})" title="Delete">✕</button>
+        </div>
+      </div>
+      ${item.notes?`<div class="wl-item-notes">${esc(item.notes)}</div>`:""}
+      <div class="wl-item-date">${item.date||""}</div>
+    </div>
+  `).join("");
+}
+
+function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
+
+function showWlForm(idx){
+  const body=document.getElementById("wlBody");
+  const list=loadWl();
+  const item=idx!=null?list[idx]:{name:"",ticker:"",notes:""};
+  const formHtml=`
+    <div class="wl-form" id="wlForm">
+      <input type="text" id="wfName" placeholder="股票名称" value="${esc(item.name)}">
+      <input type="text" id="wfTicker" placeholder="代码（可选）" value="${esc(item.ticker||"")}">
+      <textarea id="wfNotes" placeholder="备注（可选）">${esc(item.notes||"")}</textarea>
+      <div class="wl-form-actions">
+        <button class="wl-cancel" onclick="renderWl()">取消</button>
+        <button class="wl-save" onclick="saveWlItem(${idx!=null?idx:-1})">保存</button>
+      </div>
+    </div>
+  `;
+  if(idx!=null){
+    document.getElementById("wli-"+idx).outerHTML=formHtml;
+  }else{
+    body.insertAdjacentHTML("afterbegin",formHtml);
+  }
+  document.getElementById("wfName").focus();
+}
+
+function saveWlItem(idx){
+  const name=document.getElementById("wfName").value.trim();
+  if(!name)return;
+  const ticker=document.getElementById("wfTicker").value.trim();
+  const notes=document.getElementById("wfNotes").value.trim();
+  const list=loadWl();
+  const item={name,ticker,notes,date:new Date().toISOString().slice(0,10)};
+  if(idx>=0){list[idx]=item;}else{list.unshift(item);}
+  saveWl(list);
+  updateWlCnt();
+  renderWl();
+}
+
+function editWlItem(idx){showWlForm(idx);}
+
+function deleteWlItem(idx){
+  const list=loadWl();
+  list.splice(idx,1);
+  saveWl(list);
+  updateWlCnt();
+  renderWl();
+}
+
+// Notes system (localStorage)
+const NOTES_KEY="inv-dashboard-notes";
+let notesView="date";
+let pendingQuote="";
+
+function loadNotes(){try{return JSON.parse(localStorage.getItem(NOTES_KEY))||[];}catch(e){return[];}}
+function saveNotes(list){localStorage.setItem(NOTES_KEY,JSON.stringify(list));}
+function updateNotesCnt(){document.getElementById("notesCnt").textContent=loadNotes().length;}
+
+// Text selection → popover
+let selRect=null;
+document.addEventListener("mouseup",e=>{
+  const pop=document.getElementById("selPop");
+  const form=document.getElementById("noteFormWrap");
+  if(pop.contains(e.target)||form.contains(e.target))return;
+  const sel=window.getSelection();
+  const text=sel.toString().trim();
+  const detBody=document.getElementById("detailBody");
+  if(!text||!detBody||!detBody.contains(sel.anchorNode)){
+    pop.style.display="none";
+    return;
+  }
+  const range=sel.getRangeAt(0);
+  const rect=range.getBoundingClientRect();
+  const container=document.querySelector(".right");
+  const cr=container.getBoundingClientRect();
+  const popH=32;
+  const spaceBelow=cr.bottom-rect.bottom;
+  let x=rect.left-cr.left+rect.width/2-40;
+  let y;
+  if(spaceBelow>popH+8){
+    y=rect.bottom-cr.top+4;
+  }else{
+    y=rect.top-cr.top-popH-4;
+  }
+  pop.style.left=Math.max(4,x)+"px";
+  pop.style.top=y+"px";
+  pop.style.display="block";
+  pendingQuote=text;
+  selRect=rect;
+});
+
+document.addEventListener("mousedown",e=>{
+  const pop=document.getElementById("selPop");
+  const form=document.getElementById("noteFormWrap");
+  if(!pop.contains(e.target)&&!form.contains(e.target)){
+    pop.style.display="none";
+  }
+});
+
+function showNoteForm(){
+  const pop=document.getElementById("selPop");
+  pop.style.display="none";
+  const form=document.getElementById("noteFormWrap");
+  const container=document.querySelector(".right");
+  const cr=container.getBoundingClientRect();
+  const formW=320,formH=220;
+  let x,y;
+  if(selRect){
+    x=selRect.left-cr.left+selRect.width/2-formW/2;
+    const spaceBelow=cr.bottom-selRect.bottom;
+    if(spaceBelow>formH+12){
+      y=selRect.bottom-cr.top+8;
+    }else{
+      y=selRect.top-cr.top-formH-8;
+    }
+  }else{
+    x=(cr.width-formW)/2;
+    y=80;
+  }
+  x=Math.max(8,Math.min(x,cr.width-formW-8));
+  y=Math.max(8,Math.min(y,cr.height-formH-8));
+  form.style.left=x+"px";
+  form.style.top=y+"px";
+  form.style.right="auto";
+  form.style.display="block";
+  document.getElementById("nfQuote").textContent=pendingQuote.length>300?pendingQuote.slice(0,300)+"…":pendingQuote;
+  document.getElementById("nfComment").value="";
+  document.getElementById("nfComment").focus();
+  window.getSelection().removeAllRanges();
+}
+
+function hideNoteForm(){
+  document.getElementById("noteFormWrap").style.display="none";
+  pendingQuote="";
+}
+
+function saveNote(){
+  const comment=document.getElementById("nfComment").value.trim();
+  if(!comment&&!pendingQuote)return;
+  const s=STOCKS.find(x=>x.id===selId);
+  const note={
+    id:Date.now(),
+    stockId:selId||"",
+    stockName:s?s.name:"Unknown",
+    ticker:s?s.ticker:"",
+    quote:pendingQuote,
+    comment:comment,
+    date:new Date().toISOString().slice(0,10)
+  };
+  const list=loadNotes();
+  list.unshift(note);
+  saveNotes(list);
+  updateNotesCnt();
+  hideNoteForm();
+}
+
+function toggleNotes(){
+  const p=document.getElementById("notesPanel");
+  const isOpen=p.classList.contains("open");
+  closeAllPanels();
+  if(!isOpen){p.classList.add("open");renderNotes();}
+}
+
+function setNotesView(view,btn){
+  notesView=view;
+  document.querySelectorAll(".notes-tab").forEach(t=>t.classList.remove("on"));
+  btn.classList.add("on");
+  renderNotes();
+}
+
+function renderNotes(){
+  const body=document.getElementById("notesBody");
+  const list=loadNotes();
+  if(!list.length){body.innerHTML=`<div class="notes-empty">还没有笔记，在 Thesis 中选中文字即可添加</div>`;return;}
+
+  let grouped={};
+  if(notesView==="date"){
+    list.forEach(n=>{const d=n.date||"Unknown";if(!grouped[d])grouped[d]=[];grouped[d].push(n);});
+  }else{
+    list.forEach(n=>{const k=n.stockName||"Unknown";if(!grouped[k])grouped[k]=[];grouped[k].push(n);});
+  }
+
+  let h="";
+  for(const[key,notes] of Object.entries(grouped)){
+    h+=`<div class="note-group"><div class="note-group-hd">${esc(key)}</div>`;
+    for(const n of notes){
+      const meta=notesView==="date"?n.stockName:n.date;
+      h+=`<div class="note-card">
+        <div class="note-card-top">
+          <span class="note-card-stock">${esc(meta)}${n.ticker&&notesView==="date"?" · "+esc(n.ticker):""}</span>
+          <div class="note-card-actions">
+            <button onclick="deleteNote(${n.id})" title="Delete">✕</button>
+          </div>
+        </div>
+        ${n.quote?`<div class="note-card-quote">${esc(n.quote)}</div>`:""}
+        ${n.comment?`<div class="note-card-comment">${esc(n.comment)}</div>`:""}
+      </div>`;
+    }
+    h+=`</div>`;
+  }
+  body.innerHTML=h;
+}
+
+function deleteNote(id){
+  let list=loadNotes();
+  list=list.filter(n=>n.id!==id);
+  saveNotes(list);
+  updateNotesCnt();
+  renderNotes();
+}
+
+function downloadNotes(){
+  const list=loadNotes();
+  if(!list.length)return;
+  let grouped={};
+  if(notesView==="date"){
+    list.forEach(n=>{const d=n.date||"Unknown";if(!grouped[d])grouped[d]=[];grouped[d].push(n);});
+  }else{
+    list.forEach(n=>{const k=n.stockName||"Unknown";if(!grouped[k])grouped[k]=[];grouped[k].push(n);});
+  }
+  let md=`# Investment Notes (${notesView==="date"?"By Date":"By Stock"})\n\nExported: ${new Date().toISOString().slice(0,10)}\n\n`;
+  for(const[key,notes] of Object.entries(grouped)){
+    md+=`## ${key}\n\n`;
+    for(const n of notes){
+      const meta=notesView==="date"?`${n.stockName} (${n.ticker})`:`${n.date}`;
+      md+=`### ${meta}\n\n`;
+      if(n.quote)md+=`> ${n.quote.replace(/\n/g,"\n> ")}\n\n`;
+      if(n.comment)md+=`${n.comment}\n\n`;
+      md+=`---\n\n`;
+    }
+  }
+  const blob=new Blob([md],{type:"text/markdown"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=`notes-${notesView}-${new Date().toISOString().slice(0,10)}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Init
+renderFilters();
+renderTable();
+fetchPrices();
+updateWlCnt();
+updateNotesCnt();
+</script>
+</body>
+</html>

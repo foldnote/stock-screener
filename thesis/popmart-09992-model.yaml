@@ -1,0 +1,405 @@
+# ============================================================
+# Pop Mart (09992.HK) Financial Model
+# ============================================================
+#
+# 用法：让 Claude 读这个文件，然后提问：
+#   "如果增速降到10%，估值多少？"
+#   "帮我跑一下 scenario_c"
+#   "做一张增速×毛利率的敏感性表"
+#   "FY25的FCF/NI是多少？趋势怎样？"
+#
+# 更新节奏：
+#   - 财报后更新 historicals（每半年）
+#   - 随时调 assumptions（你的判断变了就改）
+#   - scenarios 在重大事件后重审
+#
+# 单位：百万RMB，除非标注 %/倍/天
+# 数据来源：stockanalysis.com, 公司年报, thesis文件
+# 最后更新：2026-05-03
+# ============================================================
+
+meta:
+  company: 泡泡玛特 Pop Mart International
+  ticker: "09992.HK"
+  currency: RMB
+  fiscal_year_end: December
+  company_type: 轻资产高毛利型 + IP驱动消费品
+  shares_million: 1330          # FY2025 basic
+  current_price_hkd: 153.20     # as of 2026-04-28
+  hkd_rmb_rate: 0.926           # 1 HKD ≈ 0.926 RMB
+
+# ============================================================
+# Layer 1: HISTORICALS（事实，财报后更新）
+# ============================================================
+
+historicals:
+
+  income_statement:  # 百万RMB
+    revenue:
+      2021: 4491
+      2022: 4617
+      2023: 6301
+      2024: 13038
+      2025: 37120
+    cogs:
+      2021: 1732
+      2022: 1963
+      2023: 2437
+      2024: 4330
+      2025: 10355
+    gross_profit:
+      2021: 2759
+      2022: 2655
+      2023: 3864
+      2024: 8708
+      2025: 26765
+    sga:  # 销售+管理费用
+      2021: 1664
+      2022: 2157
+      2023: 2712
+      2024: 4598
+      2025: 9852
+    operating_income:
+      2021: 1138
+      2022: 535
+      2023: 1224
+      2024: 4196
+      2025: 17030
+    net_income:
+      2021: 854
+      2022: 476
+      2023: 1082
+      2024: 3125
+      2025: 12776
+    eps_diluted:  # RMB
+      2021: 0.62
+      2022: 0.35
+      2023: 0.81
+      2024: 2.35
+      2025: 9.58
+
+  cash_flow:  # 百万RMB
+    operating_cash_flow:
+      2021: 779
+      2022: 891
+      2023: 1991
+      2024: 4954
+      2025: 10865
+    capex:
+      2021: -288
+      2022: -266
+      2023: -324
+      2024: -373
+      2025: -985
+    free_cash_flow:
+      2021: 492
+      2022: 625
+      2023: 1667
+      2024: 4582
+      2025: 9880
+    depreciation_amortization:
+      2021: 434
+      2022: 600
+      2023: 661
+      2024: 852
+      2025: 1108
+
+  balance_sheet:  # 百万RMB
+    cash:  # stockanalysis口径，不含定期存款
+      2021: 5265
+      2022: 685
+      2023: 2078
+      2024: 6109
+      2025: 13775
+    # 年报口径（含定期存款）：FY24=6,110, FY25=17,230
+    inventory:
+      2021: 983
+      2022: 1009
+      2023: 984
+      2024: 1622
+      2025: 5615
+    accounts_receivable:
+      2021: 171
+      2022: 194
+      2023: 321
+      2024: 478
+      2025: 921
+    accounts_payable:
+      2021: 266
+      2022: 259
+      2023: 445
+      2024: 1010
+      2025: 1858
+    total_assets:
+      2021: 8324
+      2022: 8580
+      2023: 9969
+      2024: 14871
+      2025: 32101
+    total_equity:
+      2021: 6820
+      2022: 6965
+      2023: 7780
+      2024: 10885
+      2025: 22652
+    total_liabilities:
+      2021: 1504
+      2022: 1615
+      2023: 2188
+      2024: 3986
+      2025: 9449
+    lease_liabilities:  # 非银行借款，全部是IFRS16租赁负债
+      2021: 621
+      2022: 741
+      2023: 793
+      2024: 965
+      2025: 2862
+    bank_debt: 0  # 所有年份均为零
+
+  revenue_segments:  # 百万RMB
+    by_region:
+      china:
+        2023: 5235     # 63.0 - 10.66 = 52.34亿
+        2024: 8913     # 推算：130.38 - 41.5 = 88.88亿
+        2025: 20850    # 年报：208.5亿
+      overseas:
+        2023: 1066     # 年报：10.66亿
+        2024: 4125     # 推算：162.7/(1+2.92)=41.5亿
+        2025: 16270    # 年报：162.7亿
+    by_product:  # FY2025 only
+      plush:    18700   # 毛绒 187亿 (50.4%)
+      figures:  12010   # 手办 120.1亿 (32.4%)
+      derivatives: 4500 # 衍生品 45亿
+      mega:     1900    # MEGA 19亿
+    by_ip:  # FY2025 only, 百万RMB
+      LABUBU:      14160  # 38.1%
+      SKULLPANDA:  3540
+      CRYBABY:     2930
+      MOLLY:       2900
+      DIMOO:       2780
+      THE_MONSTERS: 2060  # 星星人
+      others:      8750
+
+  # 派生指标（从上面的数据计算）
+  derived_metrics:
+    revenue_growth_pct:
+      2022: 2.8
+      2023: 36.5
+      2024: 106.9
+      2025: 184.7
+    gross_margin_pct:
+      2021: 61.4
+      2022: 57.5
+      2023: 61.3
+      2024: 66.8
+      2025: 72.1
+    net_margin_pct:
+      2021: 19.0
+      2022: 10.3
+      2023: 17.2
+      2024: 24.0
+      2025: 34.4
+    operating_margin_pct:
+      2021: 25.3
+      2022: 11.6
+      2023: 19.4
+      2024: 32.2
+      2025: 45.9
+    sga_pct:  # SGA / Revenue
+      2021: 37.1
+      2022: 46.7
+      2023: 43.0
+      2024: 35.3
+      2025: 26.5
+    capex_pct:  # Capex / Revenue
+      2021: 6.4
+      2022: 5.8
+      2023: 5.1
+      2024: 2.9
+      2025: 2.7
+    fcf_to_net_income:  # FCF / NI
+      2021: 0.58
+      2022: 1.31
+      2023: 1.54
+      2024: 1.47
+      2025: 0.77
+    roe_pct:  # NI / Total Equity
+      2021: 12.5
+      2022: 6.8
+      2023: 13.9
+      2024: 28.7
+      2025: 56.4
+    inventory_days:  # avg(inv_t, inv_t-1) / COGS × 365
+      # 注意：公司年报口径略低（FY24:102, FY25:123）
+      2022: 185
+      2023: 149
+      2024: 110
+      2025: 128
+    labubu_share_pct:
+      2024: 23     # 年报
+      2025: 38.1   # 年报
+
+# ============================================================
+# Layer 2: ASSUMPTIONS（你的判断，随时可调）
+# ============================================================
+# 每个参数标注对应 thesis/monitor 的哪个假设
+
+assumptions:
+  # --- 收入增长 ---
+  # 对应 thesis 假设#2（海外扩张）+ monitor Kill#1（LABUBU占比）
+  revenue_growth_pct:
+    2026E: 20     # 管理层指引"不低于20%"
+    2027E: 15     # 增速继续换挡，海外扩张贡献递减
+    2028E: 12     # 稳态增长
+
+  # --- 收入结构 ---
+  overseas_revenue_pct:
+    2026E: 48     # 海外继续快于国内
+    2027E: 52
+    2028E: 55
+
+  # 对应 thesis 假设#1（IP平台能力）
+  labubu_share_pct:
+    2026E: 35     # 假设略降，新IP接棒
+    2027E: 30
+    2028E: 25
+
+  # --- 利润率 ---
+  # 对应 thesis 假设#3（财务质量）
+  gross_margin_pct:
+    2026E: 70     # 海外物流/关税压力 + 产品结构变化
+    2027E: 69
+    2028E: 68
+
+  sga_pct:
+    2026E: 28     # 海外扩张期费用率回升
+    2027E: 27
+    2028E: 26
+
+  # 有效税率（推测，包含HK优惠税率+内地税）
+  effective_tax_rate_pct: 20
+
+  # --- 资本开支 ---
+  # 乐园 + 海外门店 + 产能
+  capex_pct:
+    2026E: 4.0    # 乐园投资增加
+    2027E: 3.5
+    2028E: 3.0
+
+  # --- 营运资本 ---
+  # 对应 monitor Kill#3（存货周转）
+  inventory_days:
+    2026E: 135    # 海外备货周期更长，继续恶化
+    2027E: 130
+    2028E: 125
+
+  # --- 股本 ---
+  shares_million:
+    2026E: 1325   # 小幅回购
+    2027E: 1320
+    2028E: 1315
+
+  # --- 估值参数 ---
+  target_pe: 18          # 合理PE中枢（消费品成长股）
+  discount_rate_pct: 10  # WACC proxy
+  terminal_growth_pct: 3 # 永续增长率
+
+# ============================================================
+# Layer 3: SCENARIOS（预设假设组合）
+# ============================================================
+# 改一个场景 = 改几个参数，然后让 Claude 重新算
+
+scenarios:
+
+  # 场景A：海外持续爆发 + 新IP接棒成功
+  # thesis全面验证，市场重新给予成长溢价
+  a_overseas_boom_new_ip:
+    revenue_growth_pct:  { 2026E: 30, 2027E: 25, 2028E: 20 }
+    gross_margin_pct:    { 2026E: 72, 2027E: 71, 2028E: 70 }
+    sga_pct:             { 2026E: 26, 2027E: 25, 2028E: 24 }
+    labubu_share_pct:    { 2026E: 32, 2027E: 25, 2028E: 20 }
+    target_pe: 22
+    trigger: "H1海外增速>80% + 非LABUBU新IP单季占比>15%"
+    thesis_link: "假设#1#2全部验证"
+
+  # 场景B：符合管理层指引，稳健增长
+  # base case，当前assumptions就是这个场景
+  b_guided_growth:
+    revenue_growth_pct:  { 2026E: 20, 2027E: 15, 2028E: 12 }
+    gross_margin_pct:    { 2026E: 70, 2027E: 69, 2028E: 68 }
+    sga_pct:             { 2026E: 28, 2027E: 27, 2028E: 26 }
+    labubu_share_pct:    { 2026E: 35, 2027E: 30, 2028E: 25 }
+    target_pe: 18
+    trigger: "管理层指引兑现，无重大意外"
+    thesis_link: "base case"
+
+  # 场景C：LABUBU衰退 + 海外减速
+  # thesis假设#1被挑战
+  c_labubu_fade:
+    revenue_growth_pct:  { 2026E: 8, 2027E: 5, 2028E: 3 }
+    gross_margin_pct:    { 2026E: 66, 2027E: 64, 2028E: 62 }
+    sga_pct:             { 2026E: 32, 2027E: 33, 2028E: 34 }
+    labubu_share_pct:    { 2026E: 42, 2027E: 45, 2028E: 48 }  # 占比反而升（其他IP更差）
+    inventory_days:      { 2026E: 150, 2027E: 160, 2028E: 165 }
+    target_pe: 12
+    trigger: "LABUBU二手溢价倒挂 + 海外同店转负"
+    thesis_link: "假设#1失败，Kill#1接近触发"
+
+  # 场景D：行业见顶 + 存货危机（压力测试）
+  # 最差合理场景，用于计算安全边际
+  d_industry_peak_inventory_crisis:
+    revenue_growth_pct:  { 2026E: 0, 2027E: -10, 2028E: -5 }
+    gross_margin_pct:    { 2026E: 60, 2027E: 55, 2028E: 55 }
+    sga_pct:             { 2026E: 38, 2027E: 42, 2028E: 40 }
+    inventory_days:      { 2026E: 170, 2027E: 180, 2028E: 160 }
+    target_pe: 8
+    trigger: "潮玩品类整体收缩 + 渠道常态折扣 + 存货减值"
+    thesis_link: "Kill#3触发 + 风险#2（行业见顶）"
+
+# ============================================================
+# VALUATION ANCHORS（估值锚点，Claude计算时参考）
+# ============================================================
+
+valuation_anchors:
+  # PE法
+  pe_range:
+    floor: 8       # 行业见顶、增长归零
+    low: 12        # 增长降至个位数
+    mid: 18        # 稳健增长15-20%
+    high: 25       # 高增长30%+，thesis全面验证
+  pe_history_note: "上市以来PE范围约10x-55x，2025年从50x压到15x"
+
+  # FCF Yield法
+  fcf_yield_note: "FY25 FCF=98.8亿, 市值~1900亿RMB → FCF Yield≈5.2%"
+  risk_free_rate_pct: 1.76  # 10Y中国国债
+
+  # 可比公司PE（参考）
+  comps:
+    hermes: 50     # 奢侈品，稳定高增长
+    lvmh: 22       # 奢侈品集团
+    mnso: 15       # 名创优品，相似赛道
+    funko: 12      # Funko，品类衰退中
+
+# ============================================================
+# COMPUTATION GUIDE（给Claude的计算指引）
+# ============================================================
+#
+# 标准推演公式：
+#   Revenue_t   = Revenue_(t-1) × (1 + growth_rate)
+#   Gross_Profit = Revenue × gross_margin
+#   SGA          = Revenue × sga_pct
+#   EBIT        ≈ Gross_Profit - SGA
+#   Net_Income  ≈ EBIT × (1 - tax_rate)  [简化，忽略利息收入]
+#   FCF         ≈ Net_Income × fcf_to_ni_ratio  [用历史均值~1.0x]
+#                 或 = Net_Income + D&A - Capex - ΔWorkingCapital
+#   EPS          = Net_Income / shares
+#   Target_Price = EPS × target_PE × (1/hkd_rmb_rate)  [转HKD]
+#
+# 敏感性分析：
+#   行参数 = revenue_growth_pct
+#   列参数 = target_pe 或 gross_margin_pct
+#   单元格 = 对应的 Target_Price (HKD)
+#
+# 安全边际：
+#   最差合理场景(scenario_d) 的估值 vs 当前价格
+#   如果当前价格 < scenario_d估值 → 有安全边际
