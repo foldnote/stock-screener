@@ -11,6 +11,6 @@ if git diff --quiet && git diff --cached --quiet; then
 fi
 
 # Commit and push
-git add thesis/ dashboard.html template.html build.py .gitignore
-git commit -m "auto: update dashboard $(date +%Y-%m-%d\ %H:%M)"
+git add thesis/ dashboard.html template.html build.py .gitignore .github/
+git -c user.name=foldnote -c user.email=foldnote@users.noreply.github.com commit -m "auto: update dashboard $(date +%Y-%m-%d\ %H:%M)"
 git push origin main
